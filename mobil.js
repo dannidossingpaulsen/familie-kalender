@@ -34,13 +34,21 @@ function same(a,b){if(a.all_day!==b.all_day)return false;const pa=person(a),pb=p
 }
 function allEvents(){const result=state.remote.filter(x=>!x.deleted_at).map(x=>({...x,shift:false}));for(const s of state.shift){if(!result.some(r=>same(s,r)))result.push(s);}return result;}
 function covers(e,k){if(e.shift&&e.kind==='nat')return e.date===k;if(e.all_day){const a=key(new Date(e.starts_at)),b=key(new Date(Date.parse(e.ends_at)-1));return k>=a&&k<=b;}const a=key(new Date(e.starts_at)),b=key(new Date(Date.parse(e.ends_at)-1));return k>=a&&k<=b;}
-function entries(k){const seen=[];return allEvents().filter(e=>state.active.has(person(e))&&covers(e,k)&&(state.showHidden||!hidden(e,k))).sort((a,b)=>Number(b.all_day)-Number(a.all_day)||Date.parse(a.starts_at)-Date.parse(b.starts_at)).filter(e=>{if(e.shift&&seen.some(x=>same(x,e)))return false;seen.push(e);return true;});}
+function entries(k){const seen=[];return allEvents().filter(e=>state.active.has(person(e))&&covers(e,k)&&!hidden(e,k)).sort((a,b)=>Number(b.all_day)-Number(a.all_day)||Date.parse(a.starts_at)-Date.parse(b.starts_at)).filter(e=>{if(e.shift&&seen.some(x=>same(x,e)))return false;seen.push(e);return true;});}
 function eventTime(e,k){if(e.shift&&e.kind==='nat')return '22.45–08.00 (+1 dag)';if(e.all_day)return 'Hele dagen';const a=key(new Date(e.starts_at)),b=key(new Date(Date.parse(e.ends_at)-1));if(a===k&&b===k)return `${clockFmt.format(new Date(e.starts_at))}–${clockFmt.format(new Date(e.ends_at))}`;if(a===k)return `Fra ${clockFmt.format(new Date(e.starts_at))}`;if(b===k)return `Til ${clockFmt.format(new Date(e.ends_at))}`;return 'Hele dagen';}
 function emojiFor(e){const s=norm(e.title);if(/fodbold|boldtraening|kamp|staevne/.test(s))return '⚽';if(/fodsel|birthday/.test(s))return '🎂';if(/fest|bryllup|julefrokost|festival/.test(s))return '🎉';if(/ferie|sommerhus|rejse/.test(s))return '🏖️';if(/nat(te)?vagt/.test(s))return '🌙';if(/laege|tandlaege|sygehus|fysio/.test(s))return '🩺';if(/skole|institution|foraldre/.test(s))return '🎒';return '';}
-function titleFor(e){const em=emojiFor(e);return em?em+' '+(e.title||'Uden titel'):(e.title||'Uden titel');}
+function titleFor(e){
+ if(e.shift&&e.person==='Danni'&&/arbejd|vagt/i.test(e.title||'')){
+  const time=t=>{const parts=String(t||'').match(/^(\d{1,2}):(\d{2})/);return parts?`${Number(parts[1])}.${parts[2]}`:'';};
+  const start=time(e.start)||clockFmt.format(new Date(e.starts_at)).replace(':','.');
+  const end=time(e.end)||clockFmt.format(new Date(e.ends_at)).replace(':','.');
+  return `Danni ${start}–${end}`;
+ }
+ const em=emojiFor(e);return em?em+' '+(e.title||'Uden titel'):(e.title||'Uden titel');
+}
 function dayBlock(k,items=entries(k)){const date=asDate(k),isToday=k===todayKey();return `<section class="day ${isToday?'today':''}"><div class="day-head">${esc(dayFmt.format(date))}${isToday?'<small>I dag</small>':''}</div><div class="entries">${items.length?items.map(e=>`<div class="entry ${person(e).toLowerCase()} ${hidden(e,k)?'is-hidden':''}" ${eventAttr(e,k)}><div class="time">${esc(eventTime(e,k))}</div><div class="stripe"></div><div><strong>${hidden(e,k)?'🙈 ':''}${esc(titleFor(e))}</strong><small>${esc(person(e))}${e.shift?' · Vagtplan':''}${e.location?' · '+esc(e.location):''}</small></div></div>`).join(''):'<div class="empty">Ingen aftaler</div>'}</div></section>`;}
 function monthDays(k){const first=monthStart(k),start=monday(first),next=addMonth(first,1);let n=0;while(add(start,n)<next)n+=7;return Array.from({length:n},(_,i)=>add(start,i));}
-function render(){state.visibleEvents.clear();$('hiddenToggle').textContent=state.showHidden?'Skjul skjulte':'Vis skjulte';if($('hiddenNotice'))$('hiddenNotice').classList.toggle('hide',!state.showHidden);const v=state.view,k=state.anchor,month=monthStart(k);document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('selected',b.dataset.view===v));document.querySelectorAll('[data-person]').forEach(b=>b.classList.toggle('selected',state.active.has(b.dataset.person)));
+function render(){state.visibleEvents.clear();$('hiddenToggle').textContent='Vis skjulte';if($('hiddenNotice'))$('hiddenNotice').classList.toggle('hide',!state.showHidden);const v=state.view,k=state.anchor,month=monthStart(k);document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('selected',b.dataset.view===v));document.querySelectorAll('[data-person]').forEach(b=>b.classList.toggle('selected',state.active.has(b.dataset.person)));
  let dates=[];if(v==='day'){dates=[k];$('period').textContent=dayFmt.format(asDate(k));}else if(v==='week'){const mon=monday(k);dates=Array.from({length:7},(_,i)=>add(mon,i));$('period').textContent=`${fmt({day:'numeric',month:'short'}).format(asDate(mon))} – ${fmt({day:'numeric',month:'short',year:'numeric'}).format(asDate(add(mon,6)))}`;}else{dates=monthDays(k);$('period').textContent=monthFmt.format(asDate(month));}
  if(v!=='month'){$('calendar').innerHTML=dates.map(d=>dayBlock(d)).join('');return;}
  const grid=['M','T','O','T','F','L','S'].map(s=>`<div class="week-label">${s}</div>`).join('')+dates.map(d=>{const es=entries(d),visible=es.slice(0,2).map(e=>`<span class="mini-event ${person(e).toLowerCase()}" title="${esc(titleFor(e))}">${hidden(e,d)?'🙈 ':''}${esc(titleFor(e))}</span>`).join('');const extra=es.length>2?`<span class="mini-event more">+${es.length-2}</span>`:'';return `<button class="cell ${d.slice(0,7)!==month.slice(0,7)?'outside':''} ${d===todayKey()?'today-cell':''} ${d===state.selected?'selected-day':''}" data-date="${d}" aria-label="${esc(dayFmt.format(asDate(d)))}"><span class="num">${+d.slice(-2)}</span>${visible}${extra}</button>`;}).join('');
@@ -91,6 +99,44 @@ function ensureHiddenButton(){
  }
 
 ensureHiddenButton();
+
+// Separat oversigt: skjulte aftaler skal kunne gendannes uden at være synlige i kalenderen.
+function ensureHiddenDialog(){
+ if($('hiddenDialog'))return;
+ const dlg=document.createElement('dialog');dlg.id='hiddenDialog';
+ dlg.style.cssText='border:1px solid #8885;border-radius:14px;padding:20px;max-width:min(560px,94vw);width:94vw;max-height:85vh;overflow:auto;background:var(--card,#fff);color:var(--text,#222)';
+ dlg.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><h2 style="margin:0;font-size:1.25rem">Skjulte begivenheder</h2><button type="button" id="hiddenClose" style="padding:8px 12px">Luk</button></div><p style="font-size:.9rem;opacity:.8">Her kan du gendanne aftaler i den indlæste kalenderperiode. De oprindelige kalendere ændres ikke.</p><div id="hiddenList"></div><p id="hiddenError" role="alert"></p>`;
+ document.body.appendChild(dlg);
+ $('hiddenClose').addEventListener('click',()=>dlg.close());
+ $('hiddenList').addEventListener('click',async ev=>{
+  const btn=ev.target.closest('button[data-restore]');if(!btn)return;
+  const overrideKey=btn.dataset.restore,previous=state.overrides.get(overrideKey);
+  if(!previous)return;
+  btn.disabled=true;
+  const payload={event_key:overrideKey,category:previous.category||null,hidden:false,updated_at:new Date().toISOString()};
+  const {error}=await db.from('family_calendar_overrides').upsert(payload,{onConflict:'event_key'});
+  if(error){$('hiddenError').textContent='Kunne ikke gendanne: '+error.message;btn.disabled=false;return;}
+  state.overrides.set(overrideKey,payload);render();renderHiddenList();
+ });
+}
+function renderHiddenList(){
+ const list=$('hiddenList');$('hiddenError').textContent='';
+ const events=new Map(allEvents().map(e=>[eventKey(e),e]));
+ const rows=[];
+ for(const [overrideKey,o] of state.overrides){
+  if(!o.hidden)continue;
+  const idx=overrideKey.lastIndexOf('::day::');
+  const isDay=idx>=0,baseKey=isDay?overrideKey.slice(0,idx):overrideKey;
+  const e=events.get(baseKey);
+  if(!e)continue;
+  const day=isDay?overrideKey.slice(idx+7):key(new Date(e.starts_at));
+  rows.push({overrideKey,e,day,isDay});
+ }
+ rows.sort((a,b)=>a.day.localeCompare(b.day)||a.e.title.localeCompare(b.e.title,'da'));
+ list.innerHTML=rows.length?rows.map(r=>`<div style="padding:12px 0;border-bottom:1px solid #8884;display:flex;gap:12px;justify-content:space-between;align-items:center"><div><strong>${esc(titleFor(r.e))}</strong><div style="font-size:.85rem;opacity:.75">${esc(dayFmt.format(asDate(r.day)))} · ${r.isDay?'Kun denne dato':'Hele begivenheden'} · ${esc(person(r.e))}</div></div><button type="button" data-restore="${esc(r.overrideKey)}" style="padding:9px 12px;white-space:nowrap">Gør synlig</button></div>`).join(''):'<p>Ingen skjulte begivenheder fundet i de indlæste aftaler.</p>';
+}
+ensureHiddenDialog();
+$('hiddenToggle').addEventListener('click',()=>{renderHiddenList();$('hiddenDialog').showModal();});
 setInterval(()=>{if(signed)render();},60000);setInterval(()=>{if(signed)load();},300000);init();
 
 if("serviceWorker" in navigator){navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>r.unregister())).catch(()=>{});}
