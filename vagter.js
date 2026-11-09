@@ -647,3 +647,52 @@ window.FAMILY_SHIFTS = [
     "all_day": true
   }
 ];
+// Cathrines opdaterede nattevagter, november 2026–januar 2027.
+(() => {
+  const datoer = [
+    "2026-11-30",
+    "2026-12-01",
+    "2026-12-04",
+    "2026-12-05",
+    "2026-12-06",
+    "2026-12-09",
+    "2026-12-10",
+    "2026-12-15",
+    "2026-12-16",
+    "2026-12-21",
+    "2026-12-22",
+    "2026-12-27",
+    "2026-12-28",
+    "2026-12-29",
+    "2027-01-08",
+    "2027-01-09",
+    "2027-01-10",
+    "2027-01-13",
+    "2027-01-14"
+  ];
+
+  const behold = window.FAMILY_SHIFTS.filter(vagt =>
+    !(
+      vagt.person === "Cathrine" &&
+      vagt.date >= "2026-11-30" &&
+      vagt.date <= "2027-01-14"
+    )
+  );
+
+  const nyeVagter = datoer.map(dato => ({
+    id: "c-" + dato,
+    person: "Cathrine",
+    date: dato,
+    kind: "nat",
+    title: "Nattevagt",
+    start: "22:45",
+    end: "08:00",
+    next_day: true
+  }));
+
+  window.FAMILY_SHIFTS = [...behold, ...nyeVagter].sort(
+    (a, b) =>
+      a.date.localeCompare(b.date) ||
+      a.person.localeCompare(b.person)
+  );
+})();
